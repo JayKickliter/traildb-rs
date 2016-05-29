@@ -1,0 +1,11 @@
+[package]
+name = "traildb"
+version = "0.1.0"
+authors = ["Jay Kickliter <jay@kickliter.com>"]
+build = "build.rs"
+
+[dependencies]
+libc = "0.2.11"
+
+[build-dependencies]
+bindgen = "0.17.0"

@@ -88,6 +88,7 @@ impl std::fmt::Display for Error {
     }
 }
 
+pub type UUID = [u8; 16];
 
 
 pub struct Constructor {
@@ -119,6 +120,28 @@ impl Constructor {
         }
     }
 
+    pub fn add(&mut self, uuid: &UUID, timestamp: u64, values: &[&str]) -> Result<(), Error> {
+        let mut val_ptrs = Vec::new();
+        let mut val_lens = Vec::new();
+        for v in values.iter() {
+            val_ptrs.push(v.as_ptr());
+            val_lens.push(v.len() as u64);
+        }
+        let c_vals = val_ptrs.as_slice().as_ptr() as *mut *const i8;
+        let c_vals_lens = val_lens.as_slice().as_ptr() as *const u64;
+        let ret = unsafe {
+            ffi::tdb_cons_add(self.handle,
+                              uuid.as_ptr() as *mut u8,
+                              timestamp,
+                              c_vals,
+                              c_vals_lens)
+        };
+        match ret {
+            0 => Ok(()),
+            _ => Err(unsafe { std::mem::transmute(ret) }),
+        }
+    }
+
     pub fn close(&mut self) {
         unsafe { ffi::tdb_cons_close(self.handle) };
     }
@@ -138,11 +161,16 @@ fn path_cstr(path: &Path) -> CString {
 
 #[cfg(test)]
 mod test_constructor {
-    use super::Constructor;
+    extern crate chrono;
+    use super::{Constructor, UUID};
     use std::path::Path;
 
     #[test]
     fn main() {
+        // match ret {
+        //     Ok(()) => println!("Ok"),
+        //     Err(e) => println!("Error {}", e),
+        // }
         // create constructor object
         let mut constructor = Constructor::new().unwrap();
         assert!(!constructor.handle.is_null());
@@ -150,24 +178,17 @@ mod test_constructor {
         // open a new db
         let field_names = ["field1", "field2"];
         let db_path = Path::new("test");
-        let ret = constructor.open(db_path, &field_names);
-        // match ret {
-        //     Ok(()) => println!("Ok"),
-        //     Err(e) => println!("Error {}", e),
-        // }
-        assert!(Ok(()) == ret);
+        assert!(constructor.open(db_path, &field_names).is_ok());
 
+        //
+        let uuid: UUID = [0; 16];
+        let vals = ["cats", "dogs"];
+        let local: chrono::DateTime<chrono::Local> = chrono::Local::now();
+        let timestamp: u64 = local.timestamp() as u64;
+        assert!(constructor.add(&uuid, timestamp, &vals).is_ok());
 
-        // close db
-        // constructor.close();
-
-        // finalize db
-        let ret = constructor.finalize();
-        // match ret {
-        //     Ok(()) => println!("Ok"),
-        //     Err(e) => println!("Error {}", e),
-        // }
-        assert!(Ok(()) == ret);
+        // finalize db (saves it to disk)
+        assert!(constructor.finalize().is_ok());
     }
 
 }

@@ -88,6 +88,15 @@ impl std::fmt::Display for Error {
     }
 }
 
+#[inline(always)]
+fn wrap_err<T>(err: i32, val: T) -> Result<T, Error>{
+    match err {
+        0 => Ok(val),
+        _ => Err(unsafe { std::mem::transmute(err) }),
+    }
+
+}
+
 pub type UUID = [u8; 16];
 pub struct Constructor {
     handle: *mut ffi::tdb_cons,
@@ -114,10 +123,7 @@ impl Constructor {
                                field_ptrs.as_slice().as_ptr() as *mut *const i8,
                                field_ptrs.len() as u64)
         };
-        match ret {
-            0 => Ok(()),
-            _ => Err(unsafe { std::mem::transmute(ret) }),
-        }
+        wrap_err(ret,())
     }
 
     pub fn add(&mut self, uuid: &UUID, timestamp: u64, values: &[&str]) -> Result<(), Error> {
@@ -134,10 +140,7 @@ impl Constructor {
                               val_ptrs.as_slice().as_ptr() as *mut *const i8,
                               val_lens.as_slice().as_ptr() as *const u64)
         };
-        match ret {
-            0 => Ok(()),
-            _ => Err(unsafe { std::mem::transmute(ret) }),
-        }
+        wrap_err(ret,())
     }
 
     pub fn close(self) {
@@ -146,10 +149,7 @@ impl Constructor {
 
     pub fn finalize(self) -> Result<(), Error> {
         let ret = unsafe { ffi::tdb_cons_finalize(self.handle) };
-        match ret {
-            0 => Ok(()),
-            _ => Err(unsafe { std::mem::transmute(ret) }),
-        }
+        wrap_err(ret,())
     }
 }
 

@@ -142,11 +142,11 @@ impl Constructor {
         }
     }
 
-    pub fn close(&mut self) {
+    pub fn close(self) {
         unsafe { ffi::tdb_cons_close(self.handle) };
     }
 
-    pub fn finalize(&mut self) -> Result<(), Error> {
+    pub fn finalize(self) -> Result<(), Error> {
         let ret = unsafe { ffi::tdb_cons_finalize(self.handle) };
         match ret {
             0 => Ok(()),
@@ -166,12 +166,8 @@ mod test_constructor {
     use std::path::Path;
 
     #[test]
-    fn main() {
-        // match ret {
-        //     Ok(()) => println!("Ok"),
-        //     Err(e) => println!("Error {}", e),
-        // }
-        // create constructor object
+    fn test_cons() {
+        // create a new constructor
         let mut constructor = Constructor::new().unwrap();
         assert!(!constructor.handle.is_null());
 
@@ -180,7 +176,7 @@ mod test_constructor {
         let db_path = Path::new("test");
         assert!(constructor.open(db_path, &field_names).is_ok());
 
-        //
+        // add an event
         let uuid: UUID = [0; 16];
         let vals = ["cats", "dogs"];
         let local: chrono::DateTime<chrono::Local> = chrono::Local::now();
@@ -191,4 +187,8 @@ mod test_constructor {
         assert!(constructor.finalize().is_ok());
     }
 
+    // match ret {
+    //     Ok(()) => println!("Ok"),
+    //     Err(e) => println!("Error {}", e),
+    // }
 }

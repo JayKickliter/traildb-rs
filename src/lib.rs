@@ -89,8 +89,6 @@ impl std::fmt::Display for Error {
 }
 
 pub type UUID = [u8; 16];
-
-
 pub struct Constructor {
     handle: *mut ffi::tdb_cons,
 }
@@ -106,14 +104,16 @@ impl Constructor {
     }
 
     pub fn open(&mut self, path: &Path, fields: &[&str]) -> Result<(), Error> {
-        let c_path = path_cstr(path).as_ptr();
         let mut field_ptrs = Vec::new();
         for f in fields.iter() {
             field_ptrs.push(f.as_ptr());
         }
-        let c_names = field_ptrs.as_slice().as_ptr() as *mut *const i8;
-        let ret =
-            unsafe { ffi::tdb_cons_open(self.handle, c_path, c_names, field_ptrs.len() as u64) };
+        let ret = unsafe {
+            ffi::tdb_cons_open(self.handle,
+                               path_cstr(path).as_ptr(),
+                               field_ptrs.as_slice().as_ptr() as *mut *const i8,
+                               field_ptrs.len() as u64)
+        };
         match ret {
             0 => Ok(()),
             _ => Err(unsafe { std::mem::transmute(ret) }),
@@ -127,14 +127,12 @@ impl Constructor {
             val_ptrs.push(v.as_ptr());
             val_lens.push(v.len() as u64);
         }
-        let c_vals = val_ptrs.as_slice().as_ptr() as *mut *const i8;
-        let c_vals_lens = val_lens.as_slice().as_ptr() as *const u64;
         let ret = unsafe {
             ffi::tdb_cons_add(self.handle,
                               uuid.as_ptr() as *mut u8,
                               timestamp,
-                              c_vals,
-                              c_vals_lens)
+                              val_ptrs.as_slice().as_ptr() as *mut *const i8,
+                              val_lens.as_slice().as_ptr() as *const u64)
         };
         match ret {
             0 => Ok(()),

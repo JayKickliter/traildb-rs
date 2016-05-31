@@ -1,5 +1,4 @@
 extern crate bindgen;
-// use std::env;
 use std::fs::File;
 use std::io::Write;
 use std::path::Path;

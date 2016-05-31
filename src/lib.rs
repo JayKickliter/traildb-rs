@@ -89,18 +89,19 @@ impl std::fmt::Display for Error {
 }
 
 #[inline(always)]
-fn wrap_err<T>(err: i32, val: T) -> Result<T, Error>{
+fn wrap_err<T>(err: i32, val: T) -> Result<T, Error> {
     match err {
         0 => Ok(val),
         _ => Err(unsafe { std::mem::transmute(err) }),
     }
-
 }
 
 pub type UUID = [u8; 16];
 pub struct Constructor {
     handle: *mut ffi::tdb_cons,
 }
+pub type Timestamp = u64;
+pub type Version = u64;
 
 impl Constructor {
     pub fn new() -> Result<Constructor, ()> {
@@ -123,10 +124,10 @@ impl Constructor {
                                field_ptrs.as_slice().as_ptr() as *mut *const i8,
                                field_ptrs.len() as u64)
         };
-        wrap_err(ret,())
+        wrap_err(ret, ())
     }
 
-    pub fn add(&mut self, uuid: &UUID, timestamp: u64, values: &[&str]) -> Result<(), Error> {
+    pub fn add(&mut self, uuid: &UUID, timestamp: Timestamp, values: &[&str]) -> Result<(), Error> {
         let mut val_ptrs = Vec::new();
         let mut val_lens = Vec::new();
         for v in values.iter() {
@@ -140,7 +141,7 @@ impl Constructor {
                               val_ptrs.as_slice().as_ptr() as *mut *const i8,
                               val_lens.as_slice().as_ptr() as *const u64)
         };
-        wrap_err(ret,())
+        wrap_err(ret, ())
     }
 
     pub fn close(self) {
@@ -149,7 +150,63 @@ impl Constructor {
 
     pub fn finalize(self) -> Result<(), Error> {
         let ret = unsafe { ffi::tdb_cons_finalize(self.handle) };
-        wrap_err(ret,())
+        wrap_err(ret, ())
+    }
+}
+
+pub struct TDB {
+    handle: *mut ffi::tdb,
+}
+
+
+impl TDB {
+    pub fn new() -> TDB {
+        let handle = unsafe { ffi::tdb_init() };
+        TDB { handle: handle }
+    }
+
+    pub fn open(&mut self, path: &Path) -> Result<(), Error> {
+        unimplemented!();
+    }
+
+    pub fn close(&mut self) {
+        unsafe {
+            ffi::tdb_close(self.handle);
+        }
+    }
+
+    pub fn num_trails(&self) -> u64 {
+        unsafe { ffi::tdb_num_trails(self.handle) }
+    }
+
+    pub fn num_events(&self) -> u64 {
+        unsafe { ffi::tdb_num_trails(self.handle) }
+    }
+
+    pub fn num_fields(&self) -> u64 {
+        unsafe { ffi::tdb_num_fields(self.handle) }
+    }
+
+    pub fn min_timestamp(&self) -> Timestamp {
+        unsafe { ffi::tdb_min_timestamp(self.handle) }
+    }
+
+    pub fn max_timestamp(&self) -> Timestamp {
+        unsafe { ffi::tdb_max_timestamp(self.handle) }
+    }
+
+    pub fn version(&self) -> Version {
+        unsafe { ffi::tdb_version(self.handle) }
+    }
+    pub fn will_need(&self) {
+        unsafe {
+            ffi::tdb_willneed(self.handle);
+        }
+    }
+    pub fn dont_need(&self) {
+        unsafe {
+            ffi::tdb_dontneed(self.handle);
+        }
     }
 }
 

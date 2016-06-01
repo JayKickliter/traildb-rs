@@ -170,7 +170,7 @@ impl TDB {
     }
 
     pub fn num_events(&self) -> u64 {
-        unsafe { ffi::tdb_num_trails(self.handle) }
+        unsafe { ffi::tdb_num_events(self.handle) }
     }
 
     pub fn num_fields(&self) -> u64 {
@@ -231,6 +231,11 @@ mod test_constructor {
         let db_path = Path::new("test");
         let db = TDB::open(db_path).unwrap();
 
+        // check number of fields
+        let num_fields = db.num_fields();
+        println!("Num fields: {}", num_fields);
+        assert_eq!(num_fields, 1 + field_names.len() as u64);
+
         // check number of trails
         let num_trails = db.num_trails();
         println!("Num trails: {}", num_trails);
@@ -241,9 +246,5 @@ mod test_constructor {
         println!("Num events: {}", num_events);
         assert_eq!(num_events, 1);
 
-        // check number of fields
-        let num_fields = db.num_fields();
-        println!("Num fields: {}", num_fields);
-        assert_eq!(num_fields, 1 + field_names.len() as u64);
     }
 }

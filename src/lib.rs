@@ -104,6 +104,7 @@ pub struct Constructor {
 }
 pub type Timestamp = u64;
 pub type Version = u64;
+pub type TraildID = u64;
 
 impl Constructor {
     pub fn new(path: &Path, fields: &[&str]) -> Result<Constructor, Error> {
@@ -198,6 +199,16 @@ impl TDB {
         unsafe {
             ffi::tdb_dontneed(self.handle);
         }
+    }
+
+    pub fn get_trailid(&self, uuid: Uuid) -> Result<TraildID, Error> {
+        let mut id: TraildID = 0;
+        let ret = unsafe {
+            ffi::tdb_get_trail_id(self.handle,
+                                  uuid.as_bytes().as_ptr() as *mut u8,
+                                  &mut id as *mut TraildID)
+        };
+        wrap_tdb_err(ret, id)
     }
 }
 

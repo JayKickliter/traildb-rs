@@ -191,14 +191,10 @@ impl TDB {
         unsafe { ffi::tdb_version(self.handle) }
     }
     pub fn will_need(&self) {
-        unsafe {
-            ffi::tdb_willneed(self.handle);
-        }
+        unsafe { ffi::tdb_willneed(self.handle) };
     }
-    pub fn dont_need(&self) {
-        unsafe {
-            ffi::tdb_dontneed(self.handle);
-        }
+    pub fn doent_need(&self) {
+        unsafe { ffi::tdb_dontneed(self.handle) };
     }
 
     pub fn get_trailid(&self, uuid: Uuid) -> Result<TraildID, Error> {

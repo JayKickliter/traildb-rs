@@ -197,14 +197,27 @@ impl TDB {
         unsafe { ffi::tdb_dontneed(self.handle) };
     }
 
-    pub fn get_trailid(&self, uuid: Uuid) -> Result<TraildID, Error> {
+    pub fn get_trail_id(&self, uuid: Uuid) -> Option<TraildID> {
         let mut id: TraildID = 0;
         let ret = unsafe {
             ffi::tdb_get_trail_id(self.handle,
                                   uuid.as_bytes().as_ptr() as *mut u8,
                                   &mut id as *mut TraildID)
         };
-        wrap_tdb_err(ret, id)
+        match ret {
+            0 => Some(id),
+            _ => None,
+        }
+    }
+
+    pub fn get_uuid(&self, trail_id: TraildID) -> Option<Uuid> {
+        unsafe {
+            let uuid = ffi::tdb_get_uuid(self.handle, trail_id) as *const Uuid;
+            match uuid.is_null() {
+                true => None,
+                false => Some(*uuid.clone()),
+            }
+        }
     }
 }
 
@@ -213,7 +226,7 @@ fn path_cstr(path: &Path) -> CString {
 }
 
 #[cfg(test)]
-mod test_constructor {
+mod test_traildb {
     extern crate chrono;
     use super::{Constructor, Uuid, TDB};
     use std::path::Path;
@@ -254,5 +267,9 @@ mod test_constructor {
         println!("Num events: {}", num_events);
         assert_eq!(num_events, 1);
 
+        // Check round-trip get_uuid/get_trail_id
+        let trail_id = db.get_trail_id(uuid).unwrap();
+        let uuid_rt = db.get_uuid(trail_id).unwrap();
+        assert_eq!(uuid, uuid_rt);
     }
 }

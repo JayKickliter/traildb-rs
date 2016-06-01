@@ -1,5 +1,7 @@
 #[allow(non_camel_case_types,dead_code,non_snake_case,private_in_public)]
 mod ffi;
+extern crate uuid;
+pub use uuid::Uuid;
 use std::path::Path;
 use std::ffi::CString;
 use std::fmt;
@@ -96,7 +98,6 @@ fn wrap_err<T>(err: i32, val: T) -> Result<T, Error> {
     }
 }
 
-pub type UUID = [u8; 16];
 pub struct Constructor {
     handle: *mut ffi::tdb_cons,
 }
@@ -127,7 +128,7 @@ impl Constructor {
         wrap_err(ret, ())
     }
 
-    pub fn add(&mut self, uuid: &UUID, timestamp: Timestamp, values: &[&str]) -> Result<(), Error> {
+    pub fn add(&mut self, uuid: &Uuid, timestamp: Timestamp, values: &[&str]) -> Result<(), Error> {
         let mut val_ptrs = Vec::new();
         let mut val_lens = Vec::new();
         for v in values.iter() {
@@ -136,7 +137,7 @@ impl Constructor {
         }
         let ret = unsafe {
             ffi::tdb_cons_add(self.handle,
-                              uuid.as_ptr() as *mut u8,
+                              uuid.as_bytes().as_ptr() as *mut u8,
                               timestamp,
                               val_ptrs.as_slice().as_ptr() as *mut *const i8,
                               val_lens.as_slice().as_ptr() as *const u64)
@@ -214,7 +215,7 @@ fn path_cstr(path: &Path) -> CString {
 #[cfg(test)]
 mod test_constructor {
     extern crate chrono;
-    use super::{Constructor, UUID, TDB};
+    use super::{Constructor, Uuid, TDB};
     use std::path::Path;
 
     #[test]
@@ -229,7 +230,7 @@ mod test_constructor {
         assert!(constructor.open(db_path, &field_names).is_ok());
 
         // add an event
-        let uuid: UUID = [0; 16];
+        let uuid = Uuid::new_v4();
         let vals = ["cats", "dogs"];
         let local: chrono::DateTime<chrono::Local> = chrono::Local::now();
         let timestamp: u64 = local.timestamp() as u64;

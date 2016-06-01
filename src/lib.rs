@@ -160,14 +160,10 @@ pub struct TDB {
 
 
 impl TDB {
-    pub fn new() -> TDB {
+    pub fn open(path: &Path) -> Result<TDB, Error> {
         let handle = unsafe { ffi::tdb_init() };
-        TDB { handle: handle }
-    }
-
-    pub fn open(&mut self, path: &Path) -> Result<(), Error> {
-        let ret = unsafe { ffi::tdb_open(self.handle, path_cstr(path).as_ptr()) };
-        wrap_err(ret, ())
+        let ret = unsafe { ffi::tdb_open(handle, path_cstr(path).as_ptr()) };
+        wrap_err(ret, TDB { handle: handle })
     }
 
     pub fn close(&mut self) {
@@ -222,7 +218,7 @@ mod test_constructor {
     use std::path::Path;
 
     #[test]
-    fn test_cons() {
+    fn test_traildb() {
         // create a new constructor
         let mut constructor = Constructor::new().unwrap();
         assert!(!constructor.handle.is_null());
@@ -243,20 +239,22 @@ mod test_constructor {
         assert!(constructor.finalize().is_ok());
 
         // open test database
-        let mut db = TDB::new();
         let db_path = Path::new("test");
-        assert!(db.open(db_path).is_ok());
+        let db = TDB::open(db_path).unwrap();
 
         // check number of trails
         let num_trails = db.num_trails();
         println!("Num trails: {}", num_trails);
+        assert_eq!(num_trails, 1);
 
         // check number of events
         let num_events = db.num_events();
         println!("Num events: {}", num_events);
+        assert_eq!(num_events, 1);
 
         // check number of fields
         let num_fields = db.num_fields();
         println!("Num fields: {}", num_fields);
+        assert_eq!(num_fields, 1 + field_names.len() as u64);
     }
 }

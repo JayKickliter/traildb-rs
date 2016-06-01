@@ -91,7 +91,8 @@ impl std::fmt::Display for Error {
 }
 
 #[inline(always)]
-fn wrap_err<T>(err: i32, val: T) -> Result<T, Error> {
+/// Convert a tdb_error to either a Ok(T) or Err(Error)
+fn wrap_tdb_err<T>(err: i32, val: T) -> Result<T, Error> {
     match err {
         0 => Ok(val),
         _ => Err(unsafe { std::mem::transmute(err) }),
@@ -117,7 +118,7 @@ impl Constructor {
                                field_ptrs.as_slice().as_ptr() as *mut *const i8,
                                field_ptrs.len() as u64)
         };
-        wrap_err(ret, Constructor { handle: handle })
+        wrap_tdb_err(ret, Constructor { handle: handle })
     }
 
     pub fn add(&mut self, uuid: &Uuid, timestamp: Timestamp, values: &[&str]) -> Result<(), Error> {
@@ -134,7 +135,7 @@ impl Constructor {
                               val_ptrs.as_slice().as_ptr() as *mut *const i8,
                               val_lens.as_slice().as_ptr() as *const u64)
         };
-        wrap_err(ret, ())
+        wrap_tdb_err(ret, ())
     }
 
     pub fn close(self) {
@@ -143,7 +144,7 @@ impl Constructor {
 
     pub fn finalize(self) -> Result<(), Error> {
         let ret = unsafe { ffi::tdb_cons_finalize(self.handle) };
-        wrap_err(ret, ())
+        wrap_tdb_err(ret, ())
     }
 }
 
@@ -156,7 +157,7 @@ impl TDB {
     pub fn open(path: &Path) -> Result<Self, Error> {
         let handle = unsafe { ffi::tdb_init() };
         let ret = unsafe { ffi::tdb_open(handle, path_cstr(path).as_ptr()) };
-        wrap_err(ret, TDB { handle: handle })
+        wrap_tdb_err(ret, TDB { handle: handle })
     }
 
     pub fn close(&mut self) {

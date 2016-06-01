@@ -166,7 +166,8 @@ impl TDB {
     }
 
     pub fn open(&mut self, path: &Path) -> Result<(), Error> {
-        unimplemented!();
+        let ret = unsafe { ffi::tdb_open(self.handle, path_cstr(path).as_ptr()) };
+        wrap_err(ret, ())
     }
 
     pub fn close(&mut self) {
@@ -217,7 +218,7 @@ fn path_cstr(path: &Path) -> CString {
 #[cfg(test)]
 mod test_constructor {
     extern crate chrono;
-    use super::{Constructor, UUID};
+    use super::{Constructor, UUID, TDB};
     use std::path::Path;
 
     #[test]
@@ -240,10 +241,22 @@ mod test_constructor {
 
         // finalize db (saves it to disk)
         assert!(constructor.finalize().is_ok());
-    }
 
-    // match ret {
-    //     Ok(()) => println!("Ok"),
-    //     Err(e) => println!("Error {}", e),
-    // }
+        // open test database
+        let mut db = TDB::new();
+        let db_path = Path::new("test");
+        assert!(db.open(db_path).is_ok());
+
+        // check number of trails
+        let num_trails = db.num_trails();
+        println!("Num trails: {}", num_trails);
+
+        // check number of events
+        let num_events = db.num_events();
+        println!("Num events: {}", num_events);
+
+        // check number of fields
+        let num_fields = db.num_fields();
+        println!("Num fields: {}", num_fields);
+    }
 }

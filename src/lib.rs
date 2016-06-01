@@ -105,27 +105,19 @@ pub type Timestamp = u64;
 pub type Version = u64;
 
 impl Constructor {
-    pub fn new() -> Result<Constructor, ()> {
-        let handle = unsafe { ffi::tdb_cons_init() };
-        if handle.is_null() {
-            Err(())
-        } else {
-            Ok(Constructor { handle: handle })
-        }
-    }
-
-    pub fn open(&mut self, path: &Path, fields: &[&str]) -> Result<(), Error> {
+    pub fn new(path: &Path, fields: &[&str]) -> Result<Constructor, Error> {
         let mut field_ptrs = Vec::new();
         for f in fields.iter() {
             field_ptrs.push(f.as_ptr());
         }
+        let handle = unsafe { ffi::tdb_cons_init() };
         let ret = unsafe {
-            ffi::tdb_cons_open(self.handle,
+            ffi::tdb_cons_open(handle,
                                path_cstr(path).as_ptr(),
                                field_ptrs.as_slice().as_ptr() as *mut *const i8,
                                field_ptrs.len() as u64)
         };
-        wrap_err(ret, ())
+        wrap_err(ret, Constructor { handle: handle })
     }
 
     pub fn add(&mut self, uuid: &Uuid, timestamp: Timestamp, values: &[&str]) -> Result<(), Error> {
@@ -161,7 +153,7 @@ pub struct TDB {
 
 
 impl TDB {
-    pub fn open(path: &Path) -> Result<TDB, Error> {
+    pub fn open(path: &Path) -> Result<Self, Error> {
         let handle = unsafe { ffi::tdb_init() };
         let ret = unsafe { ffi::tdb_open(handle, path_cstr(path).as_ptr()) };
         wrap_err(ret, TDB { handle: handle })
@@ -221,23 +213,19 @@ mod test_constructor {
     #[test]
     fn test_traildb() {
         // create a new constructor
-        let mut constructor = Constructor::new().unwrap();
-        assert!(!constructor.handle.is_null());
-
-        // open a new db
         let field_names = ["field1", "field2"];
         let db_path = Path::new("test");
-        assert!(constructor.open(db_path, &field_names).is_ok());
+        let mut cons = Constructor::new(db_path, &field_names).unwrap();
 
         // add an event
         let uuid = Uuid::new_v4();
         let vals = ["cats", "dogs"];
         let local: chrono::DateTime<chrono::Local> = chrono::Local::now();
         let timestamp: u64 = local.timestamp() as u64;
-        assert!(constructor.add(&uuid, timestamp, &vals).is_ok());
+        assert!(cons.add(&uuid, timestamp, &vals).is_ok());
 
         // finalize db (saves it to disk)
-        assert!(constructor.finalize().is_ok());
+        assert!(cons.finalize().is_ok());
 
         // open test database
         let db_path = Path::new("test");

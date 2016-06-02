@@ -238,11 +238,21 @@ mod test_traildb {
         let mut cons = Constructor::new(db_path, &field_names).unwrap();
 
         // add an event
-        let uuid = *uuid::Uuid::new_v4().as_bytes();
-        let vals = ["cats", "dogs"];
-        let local: chrono::DateTime<chrono::Local> = chrono::Local::now();
-        let timestamp: u64 = local.timestamp() as u64;
-        assert!(cons.add(&uuid, timestamp, &vals).is_ok());
+        let mut trail_cnt = 0;
+        let mut event_cnt = 0;
+        let mut uuids = Vec::new();
+        for _ in 0..100 {
+            let uuid = *uuid::Uuid::new_v4().as_bytes();
+            for _ in 0..100 {
+                let local: chrono::DateTime<chrono::Local> = chrono::Local::now();
+                let timestamp: u64 = local.timestamp() as u64;
+                let vals = ["cats", "dogs"];
+                assert!(cons.add(&uuid, timestamp, &vals).is_ok());
+                event_cnt += 1;
+            }
+            uuids.push(uuid);
+            trail_cnt += 1;
+        }
 
         // finalize db (saves it to disk)
         assert!(cons.finalize().is_ok());
@@ -259,16 +269,18 @@ mod test_traildb {
         // check number of trails
         let num_trails = db.num_trails();
         println!("Num trails: {}", num_trails);
-        assert_eq!(num_trails, 1);
+        assert_eq!(num_trails, trail_cnt);
 
         // check number of events
         let num_events = db.num_events();
         println!("Num events: {}", num_events);
-        assert_eq!(num_events, 1);
+        assert_eq!(num_events, event_cnt);
 
-        // Check round-trip get_uuid/get_trail_id
-        let trail_id = db.get_trail_id(&uuid).unwrap();
-        let uuid_rt = db.get_uuid(trail_id).unwrap();
-        assert_eq!(&uuid, uuid_rt);
+        for uuid in uuids {
+            // Check round-trip get_uuid/get_trail_id
+            let trail_id = db.get_trail_id(&uuid).unwrap();
+            let uuid_rt = db.get_uuid(trail_id).unwrap();
+            assert_eq!(&uuid, uuid_rt);
+        }
     }
 }

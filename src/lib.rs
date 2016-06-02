@@ -102,7 +102,7 @@ pub struct Constructor {
 }
 pub type Timestamp = u64;
 pub type Version = u64;
-pub type TraildID = u64;
+pub type TrailId = u64;
 pub type Uuid = [u8; 16];
 
 impl Constructor {
@@ -148,16 +148,16 @@ impl Constructor {
     }
 }
 
-pub struct TDB {
+pub struct Db {
     handle: *mut ffi::tdb,
 }
 
 
-impl TDB {
+impl Db {
     pub fn open(path: &Path) -> Result<Self, Error> {
         let handle = unsafe { ffi::tdb_init() };
         let ret = unsafe { ffi::tdb_open(handle, path_cstr(path).as_ptr()) };
-        wrap_tdb_err(ret, TDB { handle: handle })
+        wrap_tdb_err(ret, Db { handle: handle })
     }
 
     pub fn close(&mut self) {
@@ -189,19 +189,21 @@ impl TDB {
     pub fn version(&self) -> Version {
         unsafe { ffi::tdb_version(self.handle) }
     }
+
     pub fn will_need(&self) {
         unsafe { ffi::tdb_willneed(self.handle) };
     }
+
     pub fn doent_need(&self) {
         unsafe { ffi::tdb_dontneed(self.handle) };
     }
 
-    pub fn get_trail_id(&self, uuid: &Uuid) -> Option<TrailID> {
+    pub fn get_trail_id(&self, uuid: &Uuid) -> Option<TrailId> {
         let mut id: TrailId = 0;
         let ret = unsafe {
             ffi::tdb_get_trail_id(self.handle,
                                   uuid.as_ptr() as *mut u8,
-                                  &mut id as *mut TrailID)
+                                  &mut id as *mut TrailId)
         };
         match ret {
             0 => Some(id),
@@ -209,7 +211,7 @@ impl TDB {
         }
     }
 
-    pub fn get_uuid(&self, trail_id: TrailID) -> Option<&Uuid> {
+    pub fn get_uuid(&self, trail_id: TrailId) -> Option<&Uuid> {
         unsafe {
             let ptr = ffi::tdb_get_uuid(self.handle, trail_id) as *const [u8; 16];
             ptr.as_ref()
@@ -225,7 +227,7 @@ fn path_cstr(path: &Path) -> CString {
 mod test_traildb {
     extern crate uuid;
     extern crate chrono;
-    use super::{Constructor, TDB};
+    use super::{Constructor, Db};
     use std::path::Path;
 
     #[test]
@@ -247,7 +249,7 @@ mod test_traildb {
 
         // open test database
         let db_path = Path::new("test");
-        let db = TDB::open(db_path).unwrap();
+        let db = Db::open(db_path).unwrap();
 
         // check number of fields
         let num_fields = db.num_fields();

@@ -194,7 +194,7 @@ impl Db {
         unsafe { ffi::tdb_willneed(self.handle) };
     }
 
-    pub fn doent_need(&self) {
+    pub fn dont_need(&self) {
         unsafe { ffi::tdb_dontneed(self.handle) };
     }
 

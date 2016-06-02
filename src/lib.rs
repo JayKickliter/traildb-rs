@@ -1,7 +1,5 @@
 #[allow(non_camel_case_types,dead_code,non_snake_case,private_in_public)]
 mod ffi;
-extern crate uuid;
-pub use uuid::Uuid;
 use std::path::Path;
 use std::ffi::CString;
 use std::fmt;
@@ -105,6 +103,7 @@ pub struct Constructor {
 pub type Timestamp = u64;
 pub type Version = u64;
 pub type TraildID = u64;
+pub type Uuid = [u8; 16];
 
 impl Constructor {
     pub fn new(path: &Path, fields: &[&str]) -> Result<Constructor, Error> {
@@ -131,7 +130,7 @@ impl Constructor {
         }
         let ret = unsafe {
             ffi::tdb_cons_add(self.handle,
-                              uuid.as_bytes().as_ptr() as *mut u8,
+                              uuid.as_ptr() as *mut u8,
                               timestamp,
                               val_ptrs.as_slice().as_ptr() as *mut *const i8,
                               val_lens.as_slice().as_ptr() as *const u64)
@@ -197,12 +196,12 @@ impl TDB {
         unsafe { ffi::tdb_dontneed(self.handle) };
     }
 
-    pub fn get_trail_id(&self, uuid: Uuid) -> Option<TraildID> {
-        let mut id: TraildID = 0;
+    pub fn get_trail_id(&self, uuid: &Uuid) -> Option<TrailID> {
+        let mut id: TrailId = 0;
         let ret = unsafe {
             ffi::tdb_get_trail_id(self.handle,
-                                  uuid.as_bytes().as_ptr() as *mut u8,
-                                  &mut id as *mut TraildID)
+                                  uuid.as_ptr() as *mut u8,
+                                  &mut id as *mut TrailID)
         };
         match ret {
             0 => Some(id),
@@ -210,13 +209,10 @@ impl TDB {
         }
     }
 
-    pub fn get_uuid(&self, trail_id: TraildID) -> Option<Uuid> {
+    pub fn get_uuid(&self, trail_id: TrailID) -> Option<&Uuid> {
         unsafe {
-            let uuid = ffi::tdb_get_uuid(self.handle, trail_id) as *const Uuid;
-            match uuid.is_null() {
-                true => None,
-                false => Some(*uuid.clone()),
-            }
+            let ptr = ffi::tdb_get_uuid(self.handle, trail_id) as *const [u8; 16];
+            ptr.as_ref()
         }
     }
 }
@@ -227,8 +223,9 @@ fn path_cstr(path: &Path) -> CString {
 
 #[cfg(test)]
 mod test_traildb {
+    extern crate uuid;
     extern crate chrono;
-    use super::{Constructor, Uuid, TDB};
+    use super::{Constructor, TDB};
     use std::path::Path;
 
     #[test]
@@ -239,7 +236,7 @@ mod test_traildb {
         let mut cons = Constructor::new(db_path, &field_names).unwrap();
 
         // add an event
-        let uuid = Uuid::new_v4();
+        let uuid = *uuid::Uuid::new_v4().as_bytes();
         let vals = ["cats", "dogs"];
         let local: chrono::DateTime<chrono::Local> = chrono::Local::now();
         let timestamp: u64 = local.timestamp() as u64;
@@ -268,8 +265,8 @@ mod test_traildb {
         assert_eq!(num_events, 1);
 
         // Check round-trip get_uuid/get_trail_id
-        let trail_id = db.get_trail_id(uuid).unwrap();
+        let trail_id = db.get_trail_id(&uuid).unwrap();
         let uuid_rt = db.get_uuid(trail_id).unwrap();
-        assert_eq!(uuid, uuid_rt);
+        assert_eq!(&uuid, uuid_rt);
     }
 }

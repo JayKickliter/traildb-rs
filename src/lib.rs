@@ -3,6 +3,7 @@ mod ffi;
 use std::path::Path;
 use std::ffi::CString;
 use std::fmt;
+use std::mem::transmute;
 
 #[derive(Debug)]
 #[derive(PartialEq)]
@@ -95,7 +96,7 @@ impl std::fmt::Display for Error {
 fn wrap_tdb_err<T>(err: i32, val: T) -> Result<T, Error> {
     match err {
         0 => Ok(val),
-        _ => Err(unsafe { std::mem::transmute(err) }),
+        _ => Err(unsafe { transmute(err) }),
     }
 }
 
@@ -227,30 +228,30 @@ impl Db {
     }
 }
 
-pub struct Cursor {
-    handle: *mut ffi::tdb_cursor,
-}
+pub enum Cursor {}
+
 impl Drop for Cursor {
     fn drop(&mut self) {
         unsafe {
-            ffi::tdb_cursor_free(self.handle);
+            ffi::tdb_cursor_free(transmute(self));
         };
     }
 }
-
 impl Cursor {
-    pub fn new(db: &Db) -> Self {
-        let ptr = unsafe { ffi::tdb_cursor_new(db.handle) };
-        Cursor { handle: ptr }
+    pub fn new(db: &Db) -> Result<&mut Self, ()> {
+        unsafe {
+            let ptr = ffi::tdb_cursor_new(db.handle) as *mut Cursor;
+            ptr.as_mut().ok_or(())
+        }
     }
 
     pub fn get_trail(&mut self, trail_id: TrailId) -> Result<(), Error> {
-        let ret = unsafe { ffi::tdb_get_trail(self.handle, trail_id) };
+        let ret = unsafe { ffi::tdb_get_trail(transmute(self), trail_id) };
         wrap_tdb_err(ret, ())
     }
 
     pub fn len(&mut self) -> u64 {
-        unsafe { ffi::tdb_get_trail_length(self.handle) }
+        unsafe { ffi::tdb_get_trail_length(transmute(self)) }
     }
 }
 
@@ -265,6 +266,7 @@ mod test_traildb {
     use std::path::Path;
 
     #[test]
+    #[no_mangle]
     fn test_traildb() {
         // create a new constructor
         let field_names = ["field1", "field2"];
@@ -329,7 +331,7 @@ mod test_traildb {
         assert_eq!(db.max_timestamp(), max_timestamp);
 
         // test cursor
-        let mut cursor = Cursor::new(&db);
+        let mut cursor = Cursor::new(&db).unwrap();
         for uuid in &uuids {
             let trail_id = db.get_trail_id(&uuid).unwrap();
             cursor.get_trail(trail_id).unwrap();

@@ -45,6 +45,8 @@ pub enum Error {
     OnlyDiffFilter = -513,
 }
 
+
+
 impl std::fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let s = match self {
@@ -225,6 +227,33 @@ impl Db {
     }
 }
 
+pub struct Cursor {
+    handle: *mut ffi::tdb_cursor,
+}
+impl Drop for Cursor {
+    fn drop(&mut self) {
+        unsafe {
+            ffi::tdb_cursor_free(self.handle);
+        };
+    }
+}
+
+impl Cursor {
+    pub fn new(db: &Db) -> Self {
+        let ptr = unsafe { ffi::tdb_cursor_new(db.handle) };
+        Cursor { handle: ptr }
+    }
+
+    pub fn get_trail(&mut self, trail_id: TrailId) -> Result<(), Error> {
+        let ret = unsafe { ffi::tdb_get_trail(self.handle, trail_id) };
+        wrap_tdb_err(ret, ())
+    }
+
+    pub fn len(&mut self) -> u64 {
+        unsafe { ffi::tdb_get_trail_length(self.handle) }
+    }
+}
+
 fn path_cstr(path: &Path) -> CString {
     CString::new(path.to_str().unwrap()).unwrap()
 }
@@ -232,7 +261,7 @@ fn path_cstr(path: &Path) -> CString {
 #[cfg(test)]
 mod test_traildb {
     extern crate uuid;
-    use super::{Constructor, Db};
+    use super::{Constructor, Db, Cursor};
     use std::path::Path;
 
     #[test]
@@ -243,6 +272,7 @@ mod test_traildb {
         let mut cons = Constructor::new(db_path, &field_names).unwrap();
 
         // add an event
+        let events_per_trail = 100;
         let mut trail_cnt = 0;
         let mut event_cnt = 0;
         let mut uuids = Vec::new();
@@ -250,7 +280,7 @@ mod test_traildb {
         let mut timestamps = Vec::new();
         for _ in 0..100 {
             let uuid = *uuid::Uuid::new_v4().as_bytes();
-            for _ in 0..100 {
+            for _ in 0..events_per_trail {
                 let vals = ["cats", "dogs"];
                 assert!(cons.add(&uuid, timestamp, &vals).is_ok());
                 timestamps.push(timestamp);
@@ -260,6 +290,7 @@ mod test_traildb {
             uuids.push(uuid);
             trail_cnt += 1;
         }
+
 
         // finalize db (saves it to disk)
         assert!(cons.finalize().is_ok());
@@ -284,10 +315,10 @@ mod test_traildb {
         assert_eq!(num_events, event_cnt);
 
         // Check round-trip get_uuid/get_trail_id
-        for uuid in uuids {
+        for uuid in &uuids {
             let trail_id = db.get_trail_id(&uuid).unwrap();
             let uuid_rt = db.get_uuid(trail_id).unwrap();
-            assert_eq!(&uuid, uuid_rt);
+            assert_eq!(&uuid, &uuid_rt);
         }
 
         // check max/min timestamp
@@ -296,5 +327,13 @@ mod test_traildb {
         println!("Mix/Max timestamp: {}/{}", min_timestamp, max_timestamp);
         assert_eq!(db.min_timestamp(), min_timestamp);
         assert_eq!(db.max_timestamp(), max_timestamp);
+
+        // test cursor
+        let mut cursor = Cursor::new(&db);
+        for uuid in &uuids {
+            let trail_id = db.get_trail_id(&uuid).unwrap();
+            cursor.get_trail(trail_id).unwrap();
+            assert_eq!(events_per_trail, cursor.len());
+        }
     }
 }

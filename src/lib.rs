@@ -97,13 +97,14 @@ fn wrap_tdb_err<T>(err: i32, val: T) -> Result<T, Error> {
     }
 }
 
-pub struct Constructor {
-    handle: *mut ffi::tdb_cons,
-}
 pub type Timestamp = u64;
 pub type Version = u64;
 pub type TrailId = u64;
 pub type Uuid = [u8; 16];
+
+pub struct Constructor {
+    handle: *mut ffi::tdb_cons,
+}
 
 impl Constructor {
     pub fn new(path: &Path, fields: &[&str]) -> Result<Constructor, Error> {
@@ -146,12 +147,17 @@ impl Constructor {
         let ret = unsafe { ffi::tdb_cons_finalize(self.handle) };
         wrap_tdb_err(ret, ())
     }
+
+    pub fn append(&mut self, db: &Db) -> Result<(), Error> {
+        let ret = unsafe { ffi::tdb_cons_append(self.handle, db.handle) };
+        wrap_tdb_err(ret, ())
+    }
 }
+
 
 pub struct Db {
     handle: *mut ffi::tdb,
 }
-
 
 impl Db {
     pub fn open(path: &Path) -> Result<Self, Error> {

@@ -7,3 +7,6 @@ build:
 
 test:
 	cargo test -- --nocapture
+
+clean:
+	cargo clean

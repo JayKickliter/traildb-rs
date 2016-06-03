@@ -232,7 +232,6 @@ fn path_cstr(path: &Path) -> CString {
 #[cfg(test)]
 mod test_traildb {
     extern crate uuid;
-    extern crate chrono;
     use super::{Constructor, Db};
     use std::path::Path;
 
@@ -247,14 +246,16 @@ mod test_traildb {
         let mut trail_cnt = 0;
         let mut event_cnt = 0;
         let mut uuids = Vec::new();
+        let mut timestamp = 0;
+        let mut timestamps = Vec::new();
         for _ in 0..100 {
             let uuid = *uuid::Uuid::new_v4().as_bytes();
             for _ in 0..100 {
-                let local: chrono::DateTime<chrono::Local> = chrono::Local::now();
-                let timestamp: u64 = local.timestamp() as u64;
                 let vals = ["cats", "dogs"];
                 assert!(cons.add(&uuid, timestamp, &vals).is_ok());
+                timestamps.push(timestamp);
                 event_cnt += 1;
+                timestamp += 1;
             }
             uuids.push(uuid);
             trail_cnt += 1;
@@ -282,11 +283,18 @@ mod test_traildb {
         println!("Num events: {}", num_events);
         assert_eq!(num_events, event_cnt);
 
+        // Check round-trip get_uuid/get_trail_id
         for uuid in uuids {
-            // Check round-trip get_uuid/get_trail_id
             let trail_id = db.get_trail_id(&uuid).unwrap();
             let uuid_rt = db.get_uuid(trail_id).unwrap();
             assert_eq!(&uuid, uuid_rt);
         }
+
+        // check max/min timestamp
+        let min_timestamp = *timestamps.iter().min().unwrap();
+        let max_timestamp = *timestamps.iter().max().unwrap();
+        println!("Mix/Max timestamp: {}/{}", min_timestamp, max_timestamp);
+        assert_eq!(db.min_timestamp(), min_timestamp);
+        assert_eq!(db.max_timestamp(), max_timestamp);
     }
 }

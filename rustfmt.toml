@@ -1,0 +1,5 @@
+fn_brace_style = "PreferSameLine"
+struct_trailing_comma = "Always"
+enum_trailing_comma = true
+fn_empty_single_line = false
+impl_empty_single_line = false

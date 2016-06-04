@@ -227,6 +227,13 @@ impl Db {
             ptr.as_ref()
         }
     }
+
+    pub fn cursor(&self) -> Result<&mut Cursor, ()> {
+        unsafe {
+            let ptr = ffi::tdb_cursor_new(transmute(self)) as *mut Cursor;
+            ptr.as_mut().ok_or(())
+        }
+    }
 }
 
 pub enum Cursor {}
@@ -239,13 +246,6 @@ impl Drop for Cursor {
     }
 }
 impl Cursor {
-    pub fn new(db: &Db) -> Result<&mut Self, ()> {
-        unsafe {
-            let ptr = ffi::tdb_cursor_new(transmute(db)) as *mut Cursor;
-            ptr.as_mut().ok_or(())
-        }
-    }
-
     pub fn get_trail(&mut self, trail_id: TrailId) -> Result<(), Error> {
         let ret = unsafe { ffi::tdb_get_trail(transmute(self), trail_id) };
         wrap_tdb_err(ret, ())
@@ -263,7 +263,7 @@ fn path_cstr(path: &Path) -> CString {
 #[cfg(test)]
 mod test_traildb {
     extern crate uuid;
-    use super::{Constructor, Db, Cursor};
+    use super::{Constructor, Db};
     use std::path::Path;
 
     #[test]
@@ -332,7 +332,7 @@ mod test_traildb {
         assert_eq!(db.max_timestamp(), max_timestamp);
 
         // test cursor
-        let mut cursor = Cursor::new(&db).unwrap();
+        let mut cursor = db.cursor().unwrap();
         for uuid in &uuids {
             let trail_id = db.get_trail_id(&uuid).unwrap();
             cursor.get_trail(trail_id).unwrap();

@@ -105,24 +105,23 @@ pub type Version = u64;
 pub type TrailId = u64;
 pub type Uuid = [u8; 16];
 
-pub struct Constructor {
-    handle: *mut ffi::tdb_cons,
-}
+pub enum Constructor {}
 
-impl Constructor {
-    pub fn new(path: &Path, fields: &[&str]) -> Result<Constructor, Error> {
+impl<'a> Constructor {
+    pub fn new(path: &Path, fields: &[&str]) -> Result<&'a mut Self, Error> {
         let mut field_ptrs = Vec::new();
         for f in fields.iter() {
             field_ptrs.push(f.as_ptr());
         }
-        let handle = unsafe { ffi::tdb_cons_init() };
+        let ptr = unsafe { ffi::tdb_cons_init() };
         let ret = unsafe {
-            ffi::tdb_cons_open(handle,
+            ffi::tdb_cons_open(ptr,
                                path_cstr(path).as_ptr(),
                                field_ptrs.as_slice().as_ptr() as *mut *const i8,
                                field_ptrs.len() as u64)
         };
-        wrap_tdb_err(ret, Constructor { handle: handle })
+        let cons: &mut Constructor = unsafe { transmute(ptr) };
+        wrap_tdb_err(ret, cons)
     }
 
     pub fn add(&mut self, uuid: &Uuid, timestamp: Timestamp, values: &[&str]) -> Result<(), Error> {
@@ -133,7 +132,7 @@ impl Constructor {
             val_lens.push(v.len() as u64);
         }
         let ret = unsafe {
-            ffi::tdb_cons_add(self.handle,
+            ffi::tdb_cons_add(transmute(self),
                               uuid.as_ptr() as *mut u8,
                               timestamp,
                               val_ptrs.as_slice().as_ptr() as *mut *const i8,
@@ -142,17 +141,17 @@ impl Constructor {
         wrap_tdb_err(ret, ())
     }
 
-    pub fn close(self) {
-        unsafe { ffi::tdb_cons_close(self.handle) };
+    pub fn close(&mut self) {
+        unsafe { ffi::tdb_cons_close(transmute(self)) };
     }
 
-    pub fn finalize(self) -> Result<(), Error> {
-        let ret = unsafe { ffi::tdb_cons_finalize(self.handle) };
+    pub fn finalize(&mut self) -> Result<(), Error> {
+        let ret = unsafe { ffi::tdb_cons_finalize(transmute(self)) };
         wrap_tdb_err(ret, ())
     }
 
     pub fn append(&mut self, db: &Db) -> Result<(), Error> {
-        let ret = unsafe { ffi::tdb_cons_append(self.handle, transmute(db)) };
+        let ret = unsafe { ffi::tdb_cons_append(transmute(self), transmute(db)) };
         wrap_tdb_err(ret, ())
     }
 }

@@ -108,6 +108,11 @@ pub type Item = u64;
 pub type Value = u64;
 pub type Field = u32;
 
+pub struct Trail<'a> {
+    pub id: TrailId,
+    cursor: &'a mut Cursor,
+}
+
 pub enum Constructor {}
 
 impl<'a> Constructor {
@@ -211,6 +216,17 @@ impl Db {
         unsafe { ffi::tdb_dontneed(transmute(self)) };
     }
 
+    pub fn get_trail(&self, trail_id: TrailId) -> Option<Trail> {
+        let cursor = self.cursor();
+        if cursor.get_trail(trail_id).is_err() {
+            return None;
+        };
+        Some(Trail {
+            id: trail_id,
+            cursor: cursor,
+        })
+    }
+
     pub fn get_trail_id(&self, uuid: &Uuid) -> Option<TrailId> {
         let mut id: TrailId = 0;
         let ret = unsafe {
@@ -249,16 +265,6 @@ impl Cursor {
     pub fn len(&mut self) -> u64 {
         unsafe { ffi::tdb_get_trail_length(transmute(self)) }
     }
-}
-
-impl Drop for Cursor {
-    fn drop(&mut self) {
-        unsafe { ffi::tdb_cursor_free(transmute(self)) };
-    }
-}
-
-impl Iterator for Cursor {
-    type Item = Event;
 
     fn next(&mut self) -> Option<Event> {
         unsafe {
@@ -277,6 +283,19 @@ impl Iterator for Cursor {
     }
 }
 
+impl Drop for Cursor {
+    fn drop(&mut self) {
+        unsafe { ffi::tdb_cursor_free(transmute(self)) };
+    }
+}
+
+impl<'a> Iterator for Trail<'a> {
+    type Item = Event;
+
+    fn next(&mut self) -> Option<Event> {
+        self.cursor.next()
+    }
+}
 
 
 fn path_cstr(path: &Path) -> CString {
@@ -383,13 +402,14 @@ mod test_traildb {
         // open the example db
         let db_path = Path::new("assets/wikipedia-history-small.tdb");
         let db = Db::open(db_path).unwrap();
-        let cursor = db.cursor();
 
         // iterate through some of the events
-        for trail in 0..100 {
-            assert!(cursor.get_trail(trail).is_ok());
-            while let Some(event) = cursor.next() {
-                println!("Timestamp {}", event.timestamp);
+        for id in 0..10 {
+            if let Some(trail) = db.get_trail(id) {
+                println!("Trail {}", id);
+                for event in trail {
+                    println!("Timestamp {}", event.timestamp);
+                }
             }
         }
     }

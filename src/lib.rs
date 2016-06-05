@@ -104,6 +104,9 @@ pub type Timestamp = u64;
 pub type Version = u64;
 pub type TrailId = u64;
 pub type Uuid = [u8; 16];
+pub type Item = u64;
+pub type Value = u64;
+pub type Field = u32;
 
 pub enum Constructor {}
 
@@ -228,23 +231,15 @@ impl Db {
         }
     }
 
-    pub fn cursor(&self) -> Result<&mut Cursor, ()> {
+    pub fn cursor(&self) -> &mut Cursor {
         unsafe {
             let ptr = ffi::tdb_cursor_new(transmute(self)) as *mut Cursor;
-            ptr.as_mut().ok_or(())
+            transmute(ptr)
         }
     }
 }
 
 pub enum Cursor {}
-
-impl Drop for Cursor {
-    fn drop(&mut self) {
-        unsafe {
-            ffi::tdb_cursor_free(transmute(self));
-        };
-    }
-}
 impl Cursor {
     pub fn get_trail(&mut self, trail_id: TrailId) -> Result<(), Error> {
         let ret = unsafe { ffi::tdb_get_trail(transmute(self), trail_id) };
@@ -256,8 +251,50 @@ impl Cursor {
     }
 }
 
+impl Drop for Cursor {
+    fn drop(&mut self) {
+        unsafe { ffi::tdb_cursor_free(transmute(self)) };
+    }
+}
+
+impl Iterator for Cursor {
+    type Item = Event;
+
+    fn next(&mut self) -> Option<Event> {
+        unsafe {
+            let e: *const ffi::tdb_event = ffi::tdb_cursor_next(transmute(self));
+            if e.is_null() {
+                return Option::None;
+            } else {
+                let e = e.as_ref().unwrap();
+                let items = &e.items as *const Item;
+                let num_items = e.num_items;
+                let timestamp = e.timestamp;
+                let event = Event::from_raw_parts(timestamp, items, num_items as usize);
+                Some(event)
+            }
+        }
+    }
+}
+
+
+
 fn path_cstr(path: &Path) -> CString {
     CString::new(path.to_str().unwrap()).unwrap()
+}
+
+pub struct Event {
+    pub timestamp: Timestamp,
+    pub items: &'static [Item],
+}
+
+impl Event {
+    unsafe fn from_raw_parts(timestamp: Timestamp, items: *const Item, num_items: usize) -> Self {
+        Event {
+            timestamp: timestamp,
+            items: std::slice::from_raw_parts(items, num_items),
+        }
+    }
 }
 
 #[cfg(test)]
@@ -332,11 +369,28 @@ mod test_traildb {
         assert_eq!(db.max_timestamp(), max_timestamp);
 
         // test cursor
-        let mut cursor = db.cursor().unwrap();
+        let mut cursor = db.cursor();
         for uuid in &uuids {
             let trail_id = db.get_trail_id(&uuid).unwrap();
             cursor.get_trail(trail_id).unwrap();
             assert_eq!(events_per_trail, cursor.len());
+        }
+    }
+
+    #[test]
+    #[no_mangle]
+    fn test_wiki_dump() {
+        // open the example db
+        let db_path = Path::new("assets/wikipedia-history-small.tdb");
+        let db = Db::open(db_path).unwrap();
+        let cursor = db.cursor();
+
+        // iterate through some of the events
+        for trail in 0..100 {
+            assert!(cursor.get_trail(trail).is_ok());
+            while let Some(event) = cursor.next() {
+                println!("Timestamp {}", event.timestamp);
+            }
         }
     }
 }

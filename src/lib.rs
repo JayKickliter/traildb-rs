@@ -46,8 +46,6 @@ pub enum Error {
     OnlyDiffFilter = -513,
 }
 
-
-
 impl std::fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let s = match self {
@@ -249,6 +247,35 @@ impl<'a> Db<'a> {
             Cursor { obj: transmute(ptr) }
         }
     }
+
+    pub fn iter(&'a mut self) -> DbIter<'a> {
+        DbIter { pos: 0, db: self }
+    }
+}
+
+pub struct DbIter<'a> {
+    pos: u64,
+    db: &'a mut Db<'a>,
+}
+
+impl<'a> Iterator for DbIter<'a> {
+    type Item = Trail<'a>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let id = self.pos;
+        self.pos += 1;
+        let mut cursor = self.db.cursor();
+        match cursor.get_trail(id) {
+            Err(_) => None,
+            Ok(()) => {
+                let trail = Trail {
+                    id: id,
+                    cursor: cursor,
+                };
+                Some(trail)
+            }
+        }
+    }
 }
 
 pub struct Cursor<'a> {
@@ -403,16 +430,14 @@ mod test_traildb {
     fn test_wiki_dump() {
         // open the example db
         let db_path = Path::new("assets/wikipedia-history-small.tdb");
-        let db = Db::open(db_path).unwrap();
-        let mut cursor = db.cursor();
+        let mut db = Db::open(db_path).unwrap();
 
         // iterate through some of the events
-        for id in 0..10 {
-            if let Some(trail) = db.get_trail(id) {
-                println!("Trail {}", id);
-                for event in trail {
-                    println!("Timestamp {}", event.timestamp);
-                }
+        for trail in db.iter() {
+            if trail.id > 10 {break;}
+            println!("Trail {}", trail.id);
+            for event in trail {
+                println!("Timestamp {}", event.timestamp);
             }
         }
     }

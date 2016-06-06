@@ -91,8 +91,8 @@ impl std::fmt::Display for Error {
     }
 }
 
-#[inline(always)]
 /// Convert a tdb_error to either a Ok(T) or Err(Error)
+#[inline(always)]
 fn wrap_tdb_err<T>(err: i32, val: T) -> Result<T, Error> {
     match err {
         0 => Ok(val),
@@ -110,13 +110,14 @@ pub type Field = u32;
 
 pub struct Trail<'a> {
     pub id: TrailId,
-    cursor: &'a mut Cursor,
+    cursor: Cursor<'a>,
+}
+pub struct Constructor {
+    obj: *mut ffi::tdb_cons,
 }
 
-pub enum Constructor {}
-
-impl<'a> Constructor {
-    pub fn new(path: &Path, fields: &[&str]) -> Result<&'a mut Self, Error> {
+impl Constructor {
+    pub fn new(path: &Path, fields: &[&str]) -> Result<Self, Error> {
         let mut field_ptrs = Vec::new();
         for f in fields.iter() {
             field_ptrs.push(f.as_ptr());
@@ -128,8 +129,7 @@ impl<'a> Constructor {
                                field_ptrs.as_slice().as_ptr() as *mut *const i8,
                                field_ptrs.len() as u64)
         };
-        let cons: &mut Constructor = unsafe { transmute(ptr) };
-        wrap_tdb_err(ret, cons)
+        wrap_tdb_err(ret, Constructor { obj: ptr })
     }
 
     pub fn add(&mut self, uuid: &Uuid, timestamp: Timestamp, values: &[&str]) -> Result<(), Error> {
@@ -140,7 +140,7 @@ impl<'a> Constructor {
             val_lens.push(v.len() as u64);
         }
         let ret = unsafe {
-            ffi::tdb_cons_add(transmute(self),
+            ffi::tdb_cons_add(self.obj,
                               uuid.as_ptr() as *mut u8,
                               timestamp,
                               val_ptrs.as_slice().as_ptr() as *mut *const i8,
@@ -150,74 +150,72 @@ impl<'a> Constructor {
     }
 
     pub fn close(&mut self) {
-        unsafe { ffi::tdb_cons_close(transmute(self)) };
+        unsafe { ffi::tdb_cons_close(self.obj) };
     }
 
     pub fn finalize(&mut self) -> Result<(), Error> {
-        let ret = unsafe { ffi::tdb_cons_finalize(transmute(self)) };
+        let ret = unsafe { ffi::tdb_cons_finalize(self.obj) };
         wrap_tdb_err(ret, ())
     }
 
     pub fn append(&mut self, db: &Db) -> Result<(), Error> {
-        let ret = unsafe { ffi::tdb_cons_append(transmute(self), transmute(db)) };
+        let ret = unsafe { ffi::tdb_cons_append(self.obj, transmute(db)) };
         wrap_tdb_err(ret, ())
     }
 }
 
 
-pub enum Db {}
+pub struct Db<'a> {
+    obj: &'a mut ffi::tdb,
+}
 
-impl Db {
-    pub fn open(path: &Path) -> Result<&mut Self, Error> {
+impl<'a> Db<'a> {
+    pub fn open(path: &Path) -> Result<Self, Error> {
         let ptr = unsafe { ffi::tdb_init() };
         let ret = unsafe { ffi::tdb_open(ptr, path_cstr(path).as_ptr()) };
-        let db = unsafe {
-            let ptr = ptr as *mut Db;
-            ptr.as_mut().unwrap()
-        };
-        wrap_tdb_err(ret, db)
+        unsafe { wrap_tdb_err(ret, Db { obj: transmute(ptr) }) }
     }
 
     pub fn close(&mut self) {
         unsafe {
-            ffi::tdb_close(transmute(self));
+            ffi::tdb_close(self.obj);
         }
     }
 
     pub fn num_trails(&self) -> u64 {
-        unsafe { ffi::tdb_num_trails(transmute(self)) }
+        unsafe { ffi::tdb_num_trails(self.obj) }
     }
 
     pub fn num_events(&self) -> u64 {
-        unsafe { ffi::tdb_num_events(transmute(self)) }
+        unsafe { ffi::tdb_num_events(self.obj) }
     }
 
     pub fn num_fields(&self) -> u64 {
-        unsafe { ffi::tdb_num_fields(transmute(self)) }
+        unsafe { ffi::tdb_num_fields(self.obj) }
     }
 
     pub fn min_timestamp(&self) -> Timestamp {
-        unsafe { ffi::tdb_min_timestamp(transmute(self)) }
+        unsafe { ffi::tdb_min_timestamp(self.obj) }
     }
 
     pub fn max_timestamp(&self) -> Timestamp {
-        unsafe { ffi::tdb_max_timestamp(transmute(self)) }
+        unsafe { ffi::tdb_max_timestamp(self.obj) }
     }
 
     pub fn version(&self) -> Version {
-        unsafe { ffi::tdb_version(transmute(self)) }
+        unsafe { ffi::tdb_version(self.obj) }
     }
 
     pub fn will_need(&self) {
-        unsafe { ffi::tdb_willneed(transmute(self)) };
+        unsafe { ffi::tdb_willneed(self.obj) };
     }
 
     pub fn dont_need(&self) {
-        unsafe { ffi::tdb_dontneed(transmute(self)) };
+        unsafe { ffi::tdb_dontneed(self.obj) };
     }
 
     pub fn get_trail(&self, trail_id: TrailId) -> Option<Trail> {
-        let cursor = self.cursor();
+        let mut cursor = self.cursor();
         if cursor.get_trail(trail_id).is_err() {
             return None;
         };
@@ -230,9 +228,7 @@ impl Db {
     pub fn get_trail_id(&self, uuid: &Uuid) -> Option<TrailId> {
         let mut id: TrailId = 0;
         let ret = unsafe {
-            ffi::tdb_get_trail_id(transmute(self),
-                                  uuid.as_ptr() as *mut u8,
-                                  &mut id as *mut TrailId)
+            ffi::tdb_get_trail_id(self.obj, uuid.as_ptr() as *mut u8, &mut id as *mut TrailId)
         };
         match ret {
             0 => Some(id),
@@ -242,33 +238,45 @@ impl Db {
 
     pub fn get_uuid(&self, trail_id: TrailId) -> Option<&Uuid> {
         unsafe {
-            let ptr = ffi::tdb_get_uuid(transmute(self), trail_id) as *const [u8; 16];
+            let ptr = ffi::tdb_get_uuid(self.obj, trail_id) as *const [u8; 16];
             ptr.as_ref()
         }
     }
 
-    pub fn cursor(&self) -> &mut Cursor {
+    pub fn cursor(&self) -> Cursor<'a> {
         unsafe {
-            let ptr = ffi::tdb_cursor_new(transmute(self)) as *mut Cursor;
-            transmute(ptr)
+            let ptr = ffi::tdb_cursor_new(self.obj);
+            Cursor { obj: transmute(ptr) }
         }
     }
 }
 
-pub enum Cursor {}
-impl Cursor {
+pub struct Cursor<'a> {
+    obj: &'a mut ffi::tdb_cursor,
+}
+impl<'a> Cursor<'a> {
     pub fn get_trail(&mut self, trail_id: TrailId) -> Result<(), Error> {
-        let ret = unsafe { ffi::tdb_get_trail(transmute(self), trail_id) };
+        let ret = unsafe { ffi::tdb_get_trail(self.obj, trail_id) };
         wrap_tdb_err(ret, ())
     }
 
     pub fn len(&mut self) -> u64 {
-        unsafe { ffi::tdb_get_trail_length(transmute(self)) }
+        unsafe { ffi::tdb_get_trail_length(self.obj) }
     }
+}
+
+impl<'a> Drop for Cursor<'a> {
+    fn drop(&mut self) {
+        unsafe { ffi::tdb_cursor_free(self.obj) };
+    }
+}
+
+impl<'a> Iterator for Cursor<'a> {
+    type Item = Event;
 
     fn next(&mut self) -> Option<Event> {
         unsafe {
-            let e: *const ffi::tdb_event = ffi::tdb_cursor_next(transmute(self));
+            let e: *const ffi::tdb_event = ffi::tdb_cursor_next(self.obj);
             if e.is_null() {
                 return Option::None;
             } else {
@@ -280,12 +288,6 @@ impl Cursor {
                 Some(event)
             }
         }
-    }
-}
-
-impl Drop for Cursor {
-    fn drop(&mut self) {
-        unsafe { ffi::tdb_cursor_free(transmute(self)) };
     }
 }
 
@@ -341,7 +343,7 @@ mod test_traildb {
             let uuid = *uuid::Uuid::new_v4().as_bytes();
             for _ in 0..events_per_trail {
                 let vals = ["cats", "dogs"];
-                assert!(cons.add(&uuid, timestamp, &vals).is_ok());
+                assert!(&cons.add(&uuid, timestamp, &vals).is_ok());
                 timestamps.push(timestamp);
                 event_cnt += 1;
                 timestamp += 1;
@@ -402,6 +404,7 @@ mod test_traildb {
         // open the example db
         let db_path = Path::new("assets/wikipedia-history-small.tdb");
         let db = Db::open(db_path).unwrap();
+        let mut cursor = db.cursor();
 
         // iterate through some of the events
         for id in 0..10 {

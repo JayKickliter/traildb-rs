@@ -14,3 +14,6 @@ clean:
 assets/wikipedia-history-small.tdb:
 	mkdir -p assets
 	wget http://traildb.io/data/wikipedia-history-small.tdb -O assets/wikipedia-history-small.tdb
+
+example: assets/wikipedia-history-small.tdb
+	cargo run --example wiki

@@ -108,7 +108,7 @@ pub type TrailId = u64;
 /// must be included with all added events.
 pub type Uuid = [u8; 16];
 /// TODO: Document me
-pub type Item = u64;
+pub struct Item(pub u64);
 /// TODO: Document me
 pub type Value = u64;
 /// TODO: Document me
@@ -351,21 +351,12 @@ impl<'a> Drop for Cursor<'a> {
 }
 
 impl<'a> Iterator for Cursor<'a> {
-    type Item = Event;
+    type Item = Event<'a>;
 
-    fn next(&mut self) -> Option<Event> {
+    fn next(&mut self) -> Option<Event<'a>> {
         unsafe {
-            let e: *const ffi::tdb_event = ffi::tdb_cursor_next(self.obj);
-            if e.is_null() {
-                return Option::None;
-            } else {
-                let e = e.as_ref().unwrap();
-                let items = &e.items as *const Item;
-                let num_items = e.num_items;
-                let timestamp = e.timestamp;
-                let event = Event::from_raw_parts(timestamp, items, num_items as usize);
-                Some(event)
-            }
+            let e = ffi::tdb_cursor_next(self.obj);
+            Event::from_tdb_event(e)
         }
     }
 }
@@ -379,9 +370,9 @@ pub struct Trail<'a> {
 }
 
 impl<'a> Iterator for Trail<'a> {
-    type Item = Event;
+    type Item = Event<'a>;
 
-    fn next(&mut self) -> Option<Event> {
+    fn next(&mut self) -> Option<Event<'a>> {
         self.cursor.next()
     }
 }
@@ -396,16 +387,24 @@ fn path_cstr(path: &Path) -> CString {
 
 
 
-pub struct Event {
+pub struct Event<'a> {
     pub timestamp: Timestamp,
-    pub items: &'static [Item],
+    pub items: &'a [Item],
 }
 
-impl Event {
-    unsafe fn from_raw_parts(timestamp: Timestamp, items: *const Item, num_items: usize) -> Self {
-        Event {
-            timestamp: timestamp,
-            items: std::slice::from_raw_parts(items, num_items),
+impl<'a> Event<'a> {
+    fn from_tdb_event(e: *const ffi::tdb_event) -> Option<Self> {
+        unsafe {
+            match e.as_ref() {
+                None => None,
+                Some(e) => {
+                    Some(Event {
+                        timestamp: e.timestamp,
+                        items: std::slice::from_raw_parts(transmute(&e.items),
+                                                          e.num_items as usize),
+                    })
+                }
+            }
         }
     }
 }

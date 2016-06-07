@@ -89,7 +89,7 @@ impl std::fmt::Display for Error {
     }
 }
 
-/// Convert a tdb_error to either a Ok(T) or Err(Error)
+/// Convert a `tdb_error` either to either a `Ok(T)` or `Err(Error)`
 #[inline(always)]
 fn wrap_tdb_err<T>(err: i32, val: T) -> Result<T, Error> {
     match err {
@@ -98,23 +98,62 @@ fn wrap_tdb_err<T>(err: i32, val: T) -> Result<T, Error> {
     }
 }
 
+/// A timestamp must provided with added events.
 pub type Timestamp = u64;
+/// The type returned by `Db::version`.
 pub type Version = u64;
+/// An integer type that identifies an individual traul in a `Db`.
 pub type TrailId = u64;
+/// A [UUID](https://en.wikipedia.org/wiki/Universally_unique_identifier)
+/// must be included with all added events.
 pub type Uuid = [u8; 16];
+/// TODO: Document me
 pub type Item = u64;
+/// TODO: Document me
 pub type Value = u64;
+/// TODO: Document me
 pub type Field = u32;
 
-pub struct Trail<'a> {
-    pub id: TrailId,
-    cursor: Cursor<'a>,
-}
+
+
+/// A structure that represents a TrailDB constructor.
+///
+/// A constructor lives in RAM. All events are added to the constructor.
+/// After being written to disk, it the TrailDB is immutable.
+///
+/// # Examples
+///
+/// ```
+/// use traildb::{Constructor, Uuid};
+/// use std::path::Path;
+///
+/// // Names relevent to our event type
+/// let db_fields = ["user", "action"];
+/// // Where to write our dabase to disk when we're done adding events to it
+/// let db_path = Path::new("my_traildb");
+/// // Create a constructor
+/// let mut cons = Constructor::new(db_path, &db_fields).unwrap();
+///
+/// // Let's gather necessary data to create and event
+/// // Time is stored as a `u64`. What that represents (e.g. UNIX time) is up to you
+/// let timestamp: u64 = 0;
+/// // Every trail need a UUID
+/// let uuid: Uuid = [0u8;16];
+/// // The values for for fields `"user"` and `"action"`
+/// let event_vals = ["Alice", "login"];
+///
+/// // Now lets add our event data to the constructor
+/// assert!(cons.add(&uuid, timestamp, &event_vals).is_ok());
+///
+/// // Finally, let's write our database to disk by calling `finalize`
+/// assert!(cons.finalize().is_ok());
+/// ```
 pub struct Constructor {
     obj: *mut ffi::tdb_cons,
 }
 
 impl Constructor {
+    /// Create a new TrailDB constructor.
     pub fn new(path: &Path, fields: &[&str]) -> Result<Self, Error> {
         let mut field_ptrs = Vec::new();
         for f in fields.iter() {
@@ -130,6 +169,7 @@ impl Constructor {
         wrap_tdb_err(ret, Constructor { obj: ptr })
     }
 
+    /// Add an event to the constructor.
     pub fn add(&mut self, uuid: &Uuid, timestamp: Timestamp, values: &[&str]) -> Result<(), Error> {
         let mut val_ptrs = Vec::new();
         let mut val_lens = Vec::new();
@@ -147,20 +187,25 @@ impl Constructor {
         wrap_tdb_err(ret, ())
     }
 
+    /// Close a constructor without writing it to disk.
     pub fn close(&mut self) {
         unsafe { ffi::tdb_cons_close(self.obj) };
     }
 
+    /// Write the TrailDB to disk and close it.
     pub fn finalize(&mut self) -> Result<(), Error> {
         let ret = unsafe { ffi::tdb_cons_finalize(self.obj) };
         wrap_tdb_err(ret, ())
     }
 
+    /// Combine an alread finalized TrailDB with a constructor.
     pub fn append(&mut self, db: &Db) -> Result<(), Error> {
         let ret = unsafe { ffi::tdb_cons_append(self.obj, transmute(db)) };
         wrap_tdb_err(ret, ())
     }
 }
+
+
 
 
 pub struct Db<'a> {
@@ -253,6 +298,9 @@ impl<'a> Db<'a> {
     }
 }
 
+
+
+
 pub struct DbIter<'a> {
     pos: u64,
     db: &'a mut Db<'a>,
@@ -278,9 +326,13 @@ impl<'a> Iterator for DbIter<'a> {
     }
 }
 
+
+
+
 pub struct Cursor<'a> {
     obj: &'a mut ffi::tdb_cursor,
 }
+
 impl<'a> Cursor<'a> {
     pub fn get_trail(&mut self, trail_id: TrailId) -> Result<(), Error> {
         let ret = unsafe { ffi::tdb_get_trail(self.obj, trail_id) };
@@ -318,6 +370,14 @@ impl<'a> Iterator for Cursor<'a> {
     }
 }
 
+
+
+
+pub struct Trail<'a> {
+    pub id: TrailId,
+    cursor: Cursor<'a>,
+}
+
 impl<'a> Iterator for Trail<'a> {
     type Item = Event;
 
@@ -327,9 +387,14 @@ impl<'a> Iterator for Trail<'a> {
 }
 
 
+
+
 fn path_cstr(path: &Path) -> CString {
     CString::new(path.to_str().unwrap()).unwrap()
 }
+
+
+
 
 pub struct Event {
     pub timestamp: Timestamp,
@@ -344,6 +409,9 @@ impl Event {
         }
     }
 }
+
+
+
 
 #[cfg(test)]
 mod test_traildb {
@@ -434,7 +502,9 @@ mod test_traildb {
 
         // iterate through some of the events
         for trail in db.iter() {
-            if trail.id > 10 {break;}
+            if trail.id > 10 {
+                break;
+            }
             println!("Trail {}", trail.id);
             for event in trail {
                 println!("Timestamp {}", event.timestamp);

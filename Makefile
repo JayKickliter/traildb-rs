@@ -17,3 +17,6 @@ assets/wikipedia-history-small.tdb:
 
 example: assets/wikipedia-history-small.tdb
 	cargo run --example wiki
+
+doc:
+	cargo doc

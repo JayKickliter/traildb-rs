@@ -7,7 +7,7 @@ const SESSION_LIMIT: u64 = (30 * 60); // at least 30 minutes between edits
 fn main() {
     // open the example db
     let db_path = Path::new("assets/wikipedia-history-small.tdb");
-    let mut db = Db::open(db_path).unwrap();
+    let db = Db::open(db_path).unwrap();
 
     // iterate through some of the events
     for mut trail in db.iter() {

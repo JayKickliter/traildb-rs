@@ -48,49 +48,48 @@ pub enum Error {
 
 impl std::fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let s = match self {
-            &Error::Nomem => "Nomem",
-            &Error::PathTooLong => "PathTooLong",
-            &Error::UnknownField => "UnknownField",
-            &Error::UnknownUuid => "UnknownUuid",
-            &Error::InvalidTrailId => "InvalidTrailId",
-            &Error::HandleIsNull => "HandleIsNull",
-            &Error::HandleAlreadyOpened => "HandleAlreadyOpened",
-            &Error::UnknownOption => "UnknownOption",
-            &Error::InvalidOptionValue => "InvalidOptionValue",
-            &Error::InvalidUuid => "InvalidUuid",
-            &Error::IoOpen => "IoOpen",
-            &Error::IoClose => "IoClose",
-            &Error::IoWrite => "IoWrite",
-            &Error::IoRead => "IoRead",
-            &Error::IoTruncate => "IoTruncate",
-            &Error::IoPackage => "IoPackage",
-            &Error::InvalidInfoFile => "InvalidInfoFile",
-            &Error::InvalidVersionFile => "InvalidVersionFile",
-            &Error::IncompatibleVersion => "IncompatibleVersion",
-            &Error::InvalidFieldsFile => "InvalidFieldsFile",
-            &Error::InvalidUuidsFile => "InvalidUuidsFile",
-            &Error::InvalidCodebookFile => "InvalidCodebookFile",
-            &Error::InvalidTrailsFile => "InvalidTrailsFile",
-            &Error::InvalidLexiconFile => "InvalidLexiconFile",
-            &Error::InvalidPackage => "InvalidPackage",
-            &Error::TooManyFields => "TooManyFields",
-            &Error::DuplicateFields => "DuplicateFields",
-            &Error::InvalidFieldname => "InvalidFieldname",
-            &Error::TooManyTrails => "TooManyTrails",
-            &Error::ValueTooLong => "ValueTooLong",
-            &Error::AppendFieldsMismatch => "AppendFieldsMismatch",
-            &Error::LexiconTooLarge => "LexiconTooLarge",
-            &Error::TimestampTooLarge => "TimestampTooLarge",
-            &Error::TrailTooLong => "TrailTooLong",
-            &Error::OnlyDiffFilter => "OnlyDiffFilter",
+        let s = match *self {
+            Error::Nomem => "Nomem",
+            Error::PathTooLong => "PathTooLong",
+            Error::UnknownField => "UnknownField",
+            Error::UnknownUuid => "UnknownUuid",
+            Error::InvalidTrailId => "InvalidTrailId",
+            Error::HandleIsNull => "HandleIsNull",
+            Error::HandleAlreadyOpened => "HandleAlreadyOpened",
+            Error::UnknownOption => "UnknownOption",
+            Error::InvalidOptionValue => "InvalidOptionValue",
+            Error::InvalidUuid => "InvalidUuid",
+            Error::IoOpen => "IoOpen",
+            Error::IoClose => "IoClose",
+            Error::IoWrite => "IoWrite",
+            Error::IoRead => "IoRead",
+            Error::IoTruncate => "IoTruncate",
+            Error::IoPackage => "IoPackage",
+            Error::InvalidInfoFile => "InvalidInfoFile",
+            Error::InvalidVersionFile => "InvalidVersionFile",
+            Error::IncompatibleVersion => "IncompatibleVersion",
+            Error::InvalidFieldsFile => "InvalidFieldsFile",
+            Error::InvalidUuidsFile => "InvalidUuidsFile",
+            Error::InvalidCodebookFile => "InvalidCodebookFile",
+            Error::InvalidTrailsFile => "InvalidTrailsFile",
+            Error::InvalidLexiconFile => "InvalidLexiconFile",
+            Error::InvalidPackage => "InvalidPackage",
+            Error::TooManyFields => "TooManyFields",
+            Error::DuplicateFields => "DuplicateFields",
+            Error::InvalidFieldname => "InvalidFieldname",
+            Error::TooManyTrails => "TooManyTrails",
+            Error::ValueTooLong => "ValueTooLong",
+            Error::AppendFieldsMismatch => "AppendFieldsMismatch",
+            Error::LexiconTooLarge => "LexiconTooLarge",
+            Error::TimestampTooLarge => "TimestampTooLarge",
+            Error::TrailTooLong => "TrailTooLong",
+            Error::OnlyDiffFilter => "OnlyDiffFilter",
         };
         write!(f, "Error::{}", s)
     }
 }
 
 /// Convert a `tdb_error` either to either a `Ok(T)` or `Err(Error)`
-#[inline(always)]
 fn wrap_tdb_err<T>(err: i32, val: T) -> Result<T, Error> {
     match err {
         0 => Ok(val),
@@ -118,10 +117,10 @@ pub type Field = u32;
 
 
 
-/// A structure that represents a TrailDB constructor.
+/// A structure that represents a `TrailDB` constructor.
 ///
 /// A constructor lives in RAM. All events are added to the constructor.
-/// After being written to disk, it the TrailDB is immutable.
+/// After being written to disk, it the `TrailDB` is immutable.
 ///
 /// # Examples
 ///
@@ -295,7 +294,7 @@ impl<'a> Db<'a> {
         }
     }
 
-    pub fn iter(&'a mut self) -> DbIter<'a> {
+    pub fn iter(&'a self) -> DbIter<'a> {
         DbIter { pos: 0, db: self }
     }
 
@@ -324,7 +323,7 @@ impl<'a> Db<'a> {
 
 pub struct DbIter<'a> {
     pos: u64,
-    db: &'a mut Db<'a>,
+    db: &'a Db<'a>,
 }
 
 impl<'a> Iterator for DbIter<'a> {

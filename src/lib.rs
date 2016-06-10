@@ -107,7 +107,9 @@ pub type TrailId = u64;
 /// A [UUID](https://en.wikipedia.org/wiki/Universally_unique_identifier)
 /// must be included with all added events.
 pub type Uuid = [u8; 16];
+
 /// TODO: Document me
+#[derive(Debug,Clone,Copy)]
 pub struct Item(pub u64);
 /// TODO: Document me
 pub type Value = u64;
@@ -296,6 +298,25 @@ impl<'a> Db<'a> {
     pub fn iter(&'a mut self) -> DbIter<'a> {
         DbIter { pos: 0, db: self }
     }
+
+    pub fn get_item_value(&'a self, item: Item) -> &'a str {
+        unsafe {
+            let mut len = 0u64;
+            let ptr = ffi::tdb_get_item_value(self.obj, transmute(item), &mut len);
+            let s = std::slice::from_raw_parts(ptr as *const u8, len as usize);
+            std::str::from_utf8_unchecked(s)
+        }
+    }
+
+    pub fn get_field_name(&'a self, field: Field) -> Option<&'a str> {
+        unsafe {
+            let ptr = ffi::tdb_get_field_name(self.obj, field);
+            match std::ffi::CStr::from_ptr(ptr).to_str() {
+                Ok(s) => Some(s),
+                Err(_) => None,
+            }
+        }
+    }
 }
 
 
@@ -425,19 +446,19 @@ mod test_traildb {
         let field_names = ["field1", "field2"];
         let db_path = Path::new("test");
         let mut cons = Constructor::new(db_path, &field_names).unwrap();
+        let field_vals = ["cats", "dogs"];
 
         // add an event
-        let events_per_trail = 100;
+        let events_per_trail = 10;
         let mut trail_cnt = 0;
         let mut event_cnt = 0;
         let mut uuids = Vec::new();
         let mut timestamp = 0;
         let mut timestamps = Vec::new();
-        for _ in 0..100 {
+        for _ in 0..10 {
             let uuid = *uuid::Uuid::new_v4().as_bytes();
             for _ in 0..events_per_trail {
-                let vals = ["cats", "dogs"];
-                assert!(&cons.add(&uuid, timestamp, &vals).is_ok());
+                assert!(&cons.add(&uuid, timestamp, &field_vals).is_ok());
                 timestamps.push(timestamp);
                 event_cnt += 1;
                 timestamp += 1;
@@ -490,23 +511,16 @@ mod test_traildb {
             cursor.get_trail(trail_id).unwrap();
             assert_eq!(events_per_trail, cursor.len());
         }
-    }
 
-    #[test]
-    #[no_mangle]
-    fn test_wiki_dump() {
-        // open the example db
-        let db_path = Path::new("assets/wikipedia-history-small.tdb");
-        let mut db = Db::open(db_path).unwrap();
-
-        // iterate through some of the events
+        // test db iterator
         for trail in db.iter() {
-            if trail.id > 10 {
-                break;
-            }
-            println!("Trail {}", trail.id);
+            // test trail iterator
             for event in trail {
-                println!("Timestamp {}", event.timestamp);
+                // check that inserted event values match read values
+                for (item, item_ref) in event.items.into_iter().zip(field_vals.iter()) {
+                    let item = db.get_item_value(*item);
+                    assert_eq!(item, *item_ref);
+                }
             }
         }
     }

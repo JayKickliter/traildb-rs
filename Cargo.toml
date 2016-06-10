@@ -12,3 +12,4 @@ bindgen = "^0.17.0"
 
 [dev-dependencies]
 uuid = {version = "0.2.2", features = ["v4"] }
+prettytable-rs = "0.6.2"

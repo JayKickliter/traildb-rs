@@ -4,8 +4,8 @@ use std::io::Write;
 use std::path::Path;
 
 fn main() {
-    let mut bindings = bindgen::builder();
-    let src = bindings.header("src/ffi/gen.h")
+    let mut bindings = bindgen::Builder::new("src/ffi/gen.h");
+    let src = bindings
         .builtins()
         .link("traildb", bindgen::LinkType::Dynamic)
         .rust_enums(false)

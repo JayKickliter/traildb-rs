@@ -90,9 +90,9 @@ impl std::fmt::Display for Error {
 }
 
 /// Convert a `tdb_error` either to either a `Ok(T)` or `Err(Error)`
-fn wrap_tdb_err<T>(err: i32, val: T) -> Result<T, Error> {
+fn wrap_tdb_err<T>(err: ffi::tdb_error, val: T) -> Result<T, Error> {
     match err {
-        0 => Ok(val),
+        ffi::tdb_error::TDB_ERR_OK => Ok(val),
         _ => Err(unsafe { transmute(err) }),
     }
 }
@@ -275,7 +275,7 @@ impl<'a> Db<'a> {
             ffi::tdb_get_trail_id(self.obj, uuid.as_ptr() as *mut u8, &mut id as *mut TrailId)
         };
         match ret {
-            0 => Some(id),
+            ffi::tdb_error::TDB_ERR_OK => Some(id),
             _ => None,
         }
     }

@@ -4,16 +4,14 @@ use std::io::Write;
 use std::path::Path;
 
 fn main() {
-    let mut bindings = bindgen::Builder::new("src/ffi/gen.h");
-    let src = bindings
-        .builtins()
-        .link("traildb", bindgen::LinkType::Dynamic)
-        .rust_enums(false)
+    println!("cargo:rustc-link-lib=traildb");
+
+    let _ = bindgen::builder()
+        .header("src/ffi/include/traildb.h")
+        .no_unstable_rust()
+        .emit_builtins()
+        .link("traildb")
         .generate()
-        .unwrap()
-        .to_string();
-    let out_dir = "src/ffi";
-    let out_path = Path::new(&out_dir).join("mod.rs");
-    let mut f = File::create(&out_path).unwrap();
-    f.write_all(src.as_bytes()).unwrap();
+        .expect("Unable to generate bindings")
+        .write_to_file(Path::new("src/ffi/mod.rs"));
 }
